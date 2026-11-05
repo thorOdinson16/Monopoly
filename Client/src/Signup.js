@@ -1,75 +1,11 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
-import axios from 'axios';
-import { useNavigate } from 'react-router-dom';
-import './login.css';
+import { Link, useNavigate } from 'react-router-dom';
+import Page from './Page';
+import { accountRequest } from './data/accountApi';
 
-const SignUp = () => {
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const navigate = useNavigate();
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    axios.post('http://localhost:3001/register', { name, email, password })
-      .then(result => {
-        console.log(result);
-        navigate('/login');
-      })
-      .catch(err => console.log(err));
-  };
-
-  return (
-    <div className="login-container">
-      <h1>Monopoly Sign Up</h1>
-      
-      <form onSubmit={handleSubmit}>
-        <label>Full Name</label>
-        <input
-          type="text"
-          placeholder="Full Name"
-          onChange={(e) => setName(e.target.value)}
-        />
-
-        <label>Email</label>
-        <input
-          type="email"
-          placeholder="Email"
-          onChange={(e) => setEmail(e.target.value)}
-        />
-
-        <label>Password</label>
-        <input
-          type="password"
-          placeholder="Password"
-          onChange={(e) => setPassword(e.target.value)}
-        />
-
-        <button type="submit">
-          Create Account
-        </button>
-
-        <div className="social-login">
-          <button type="button" className="social-btn">
-            Sign up with Gmail
-          </button>
-          <button type="button" className="social-btn">
-            Sign up with Google Play
-          </button>
-          <button type="button" className="social-btn">
-            Sign up with Apple
-          </button>
-        </div>
-      </form>
-
-      <div className="links">
-        <h4>Already have an account?
-          <Link to='/login'> Login</Link>
-        </h4>
-      </div>
-    </div>
-  );
-};
-
-export default SignUp;
+export default function Signup({onAuthenticated}) {
+  const [name,setName]=useState(''),[email,setEmail]=useState(''),[password,setPassword]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false);
+  const navigate=useNavigate();
+  async function submit(event){event.preventDefault();setError('');setBusy(true);try{const result=await accountRequest('/register',{method:'POST',body:JSON.stringify({name,email,password})});onAuthenticated(result.user);navigate('/home');}catch(err){setError(err.message);}finally{setBusy(false);}}
+  return <Page eyebrow="ACCOUNT" title="Create an account" subtitle="Your local games and results stay in this browser. Online play is not available yet."><form className="site-form" onSubmit={submit}><label htmlFor="signup-name">Name</label><input id="signup-name" required maxLength="80" autoComplete="name" value={name} onChange={event=>setName(event.target.value)}/><label htmlFor="signup-email">Email</label><input id="signup-email" type="email" required autoComplete="email" value={email} onChange={event=>setEmail(event.target.value)}/><label htmlFor="signup-password">Password</label><input id="signup-password" type="password" required minLength="8" maxLength="128" autoComplete="new-password" value={password} onChange={event=>setPassword(event.target.value)}/><span className="site-muted">Use at least 8 characters.</span>{error && <p className="site-error" role="alert">{error}</p>}<button className="site-button" type="submit" disabled={busy}>{busy?'Creating account…':'Create account'}</button></form><p className="site-muted">Already have an account? <Link to="/login">Sign in</Link> · <Link to="/game">Play locally</Link></p></Page>;
+}

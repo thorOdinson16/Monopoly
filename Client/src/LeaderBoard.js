@@ -1,48 +1,13 @@
-import React, { useEffect } from 'react';
-import './Leaderboard.css'; // Move your CSS styles to a separate file, or use inline styling
-import { useNavigate } from 'react-router-dom';
+import React from 'react';
+import { Link } from 'react-router-dom';
+import Page from './Page';
+import { readResults, standings } from './data/localResults';
 
-const friends = [
-    { name: "Zameer Ahmed Khan", points: "28000", img: "img5.jpg" },
-    { name: "Baba", points: "26800", img: "img6.jpg" },
-    { name: "Selmon", points: "26300", img: "img4.jpg" },
-    { name: "Vivian Siraj", points: "26000", img: "img7.jpg" },
-    { name: "Nitya", points: "25650", img: "img1.jpg" },
-    { name: "Dolly", points: "25420", img: "img8.jpg" },
-    { name: "RaGa", points: "00000", img: "img3.jpg" }
-];
-
-
-const Leaderboard = () => {
-    const navigate = useNavigate();
-    const displayFriends = () => {
-        return friends.map((friend, index) => (
-            <li key={index} className="friend-item">
-                <img src={friend.img} alt={friend.name} className="friend-img" />
-                <span className="friend-name">{friend.name}</span>
-                <span className="friend-points">{friend.points}</span>
-            </li>
-        ));
-    };
-
-    const handleAddFriend = () => {
-        navigate('/addfriend');
-    };
-
-    return (
-        <div className="container">
-            <div className="header">
-                <button onClick={handleAddFriend} className="add-friend-btn">Add Friends</button>
-            </div>
-            <div className="leaderboard">
-                <h2>Friends Leaderboard</h2>
-                <ul className="friend-list">
-                    {displayFriends()}
-                </ul>
-            </div>
-            <div className="message">You have {friends.length} friends in your leaderboard.</div>
-        </div>
-    );
-};
-
-export default Leaderboard;
+export default function Leaderboard() {
+  const results=readResults(), players=standings(results);
+  return <Page eyebrow="LOCAL RESULTS" title="Leaderboard" subtitle="Wins and games played on this browser, grouped by player name.">
+    {players.length ? <div className="site-table-wrap"><table className="site-table"><thead><tr><th scope="col">Rank</th><th scope="col">Player</th><th scope="col">Played</th><th scope="col">Wins</th></tr></thead><tbody>{players.map((player,i)=><tr key={player.name.toLocaleLowerCase()}><td>{i+1}</td><td>{player.name}</td><td>{player.played}</td><td>{player.wins}</td></tr>)}</tbody></table></div> : <div className="site-empty"><p>No completed games yet.</p><p>Finish a local game to see its players and winner here.</p></div>}
+    <p className="site-muted">Results are recorded from this update onward and are not synced across devices.</p>
+    <div className="site-actions"><Link className="site-button" to="/game">Play a game</Link><Link className="site-button secondary" to="/profile">Local profile</Link></div>
+  </Page>;
+}

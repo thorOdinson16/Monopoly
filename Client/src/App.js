@@ -1,4 +1,4 @@
-import {useState} from 'react'
+import {useEffect, useRef, useState} from 'react'
 import './App.css';
 import 'bootstrap/dist/css/bootstrap.min.css'
 import Signup from './Signup'
@@ -7,41 +7,41 @@ import Login from './Login';
 import Home from './home';
 import Leaderboard from './LeaderBoard';
 import Profile from './Profile'
-import Game from './players/game';
-import Game2 from './players/Game2';
-import Game3 from './players/Game3';
-import Game5 from './players/Game5';
-import Game6 from './players/Game6';
 import Rulebook from './rulebook';
 import Addfriend from './addfriend';
+import LocalGame from './game/LocalGame';
+import { accountRequest } from './data/accountApi';
 
 function App() {
-  const [userName, setUserName] = useState(null);
+  const [user, setUser] = useState(null);
+  const authVersion = useRef(0);
+  useEffect(() => {let active=true;const version=authVersion.current;accountRequest('/session').then(result=>{if(active && authVersion.current===version)setUser(result.user);}).catch(()=>{});return ()=>{active=false;};}, []);
+  const authenticated = next => {authVersion.current++;setUser(next);};
+  const signOut = async () => {await accountRequest('/logout',{method:'POST'});authVersion.current++;setUser(null);};
   return (
     <div>
 
       <BrowserRouter>
         <Routes>
-          <Route path='/register' element={<Signup/>}></Route>
+          <Route path='/' element={<Navigate to='/home' replace />} />
+          <Route path='/game' element={<LocalGame />} />
+          <Route path='/local-game' element={<Navigate to='/game' replace />} />
+          <Route path='/register' element={<Signup onAuthenticated={authenticated}/>}></Route>
           <Route 
             path='/login' 
-            element={<Login setUserName={setUserName} />} 
+            element={<Login onAuthenticated={authenticated} />} 
           />
           <Route 
             path='/home' 
-            element={<Home userName={userName} />
+            element={<Home user={user} />
             } 
           />
           <Route path='/leaderboard' element={<Leaderboard/>}></Route>
-          <Route path='/profile' element={<Profile/>}></Route>
-          <Route 
-          path="/game" 
-          element={<Game />} 
-        />
-        <Route path='/game2' element={<Game2/>}></Route>
-        <Route path='/game3' element={<Game3/>}></Route>
-        <Route path='/game5' element={<Game5/>}></Route>
-        <Route path='/game6' element={<Game6/>}></Route>
+          <Route path='/profile' element={<Profile user={user} onSignOut={signOut}/>}></Route>
+        <Route path='/game2' element={<Navigate to='/game' replace />}/>
+        <Route path='/game3' element={<Navigate to='/game' replace />}/>
+        <Route path='/game5' element={<Navigate to='/game' replace />}/>
+        <Route path='/game6' element={<Navigate to='/game' replace />}/>
 
         <Route path='/rulebook' element={<Rulebook/>}></Route>
         <Route path='/addfriend' element={<Addfriend/>}></Route>
@@ -54,3 +54,4 @@ function App() {
 }
 
 export default App;
+

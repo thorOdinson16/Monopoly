@@ -1,128 +1,15 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import './home.css'
+import React from 'react';
+import { Link } from 'react-router-dom';
+import { readCurrentGame } from './data/localResults';
+import './site.css';
+import './home.css';
 
-function Home({ userName }) {
-  const [showModal, setShowModal] = useState(false);
-  const [numPlayers, setNumPlayers] = useState(2);
-  const navigate = useNavigate();
-
-  const viewProfile = () => {
-    navigate('/profile');
-  };
-
-  const viewRulebook = () => {
-    navigate('/rulebook');
-  };
-
-  const viewLeaderboard = () => {
-    navigate('/leaderboard');
-  };
-
-  const handleStartGame = () => {
-    console.log('Starting game with', numPlayers, 'players');
-    if (numPlayers < 2 || numPlayers > 6) {
-      alert("Please select between 2 and 6 players.");
-      return;
-    }
-
-    // Move the navigation logic inside the handleStartGame function
-    switch(numPlayers) {
-      case 2:
-        navigate('/game2', { state: { numPlayers } });
-        break;
-      case 3:
-        navigate('/game3', { state: { numPlayers } });
-        break;
-      case 4:
-        navigate('/game', { state: { numPlayers } });
-        break;
-      case 5:
-        navigate('/game5', { state: { numPlayers } });
-        break;
-      case 6:
-        navigate('/game6', { state: { numPlayers } });
-        break;
-      default:
-        alert("Unsupported number of players");
-    }
-  };
-
-  const handlePlayClick = () => {
-    console.log('Play button clicked, showing modal');
-    setShowModal(true);
-  };
-
-  return (
-    <div className="container">
-      <div className="welcome">
-        Welcome to Monopoly, <span>{userName || "Player"}</span>!
-      </div>
-
-      <button 
-        className="button" 
-        onClick={viewProfile}
-      >
-        View Profile
-      </button>
-      <button 
-        className="button" 
-        onClick={viewRulebook}
-      >
-        RuleBook
-      </button>
-      <button 
-        className="button" 
-        onClick={viewLeaderboard}
-      >
-        Leaderboard
-      </button>
-      <button 
-        className="button" 
-        onClick={handlePlayClick}
-      >
-        Play
-      </button>
-
-      <div className="footer">
-        &copy; 2024 Monopoly Game | Have fun and play fair!
-      </div>
-      {showModal && (
-        <div className="modal">
-          <div className="modal-content">
-            <span 
-              className="close" 
-              onClick={() => setShowModal(false)}
-            >
-              &times;
-            </span>
-            <h2>
-              Select Number of Players
-            </h2>
-            <input
-              type="number"
-              className="player-input"
-              min="2"
-              max="6"
-              value={numPlayers}
-              onChange={(e) => {
-                console.log('Number changed to:', e.target.value);
-                setNumPlayers(Number(e.target.value));
-              }}
-            />
-             <button 
-              className="button" 
-              onClick={handleStartGame}
-            >
-              Start Game
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
+function Home({user}) {
+  const game=readCurrentGame();
+  return <main className="home-shell"><div className="home-brand">MONOPOLY</div><span className="home-eyebrow">GAME NIGHT, SORTED</span><h1>Ready to play?</h1><p>Gather your players, roll the dice, and see who takes the board.</p>
+    <Link className="home-play" to="/game">{game && game.winner===null?'Continue game':'Play'} <span aria-hidden="true">→</span></Link>
+    <div className="home-links"><Link to="/profile"><strong>Local profile</strong><span>Your game on this device</span></Link><Link to="/leaderboard"><strong>Leaderboard</strong><span>Completed local games</span></Link><Link to="/rulebook"><strong>How to play</strong><span>Rules and house rules</span></Link></div>
+    <p className="home-footnote">2–6 players · One device · Saved in this browser</p><p className="home-account">{user ? <>Signed in as {user.name} · <Link to="/profile">Account</Link></> : <><Link to="/login">Sign in</Link> or <Link to="/register">create an account</Link> · optional for local play</>}</p>
+  </main>;
 }
-
-// Removed inline styles as they should be in the CSS file
-
 export default Home;

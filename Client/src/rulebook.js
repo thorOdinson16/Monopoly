@@ -1,56 +1,22 @@
-import React from 'react'
-import './RuleBook.css'
+import React from 'react';
+import { Link } from 'react-router-dom';
+import './RuleBook.css';
+
+const sections = [
+  ['Goal and setup', 'Two to six players start with $1,500 each. The last player who has not gone bankrupt wins. The game saves locally in your browser.'],
+  ['Taking a turn', 'Roll two dice and follow the space you land on. Passing or landing on GO while moving forward pays $200. Rolling doubles gives another roll; three doubles in a row send you to jail.'],
+  ['Buying and rent', 'On an unowned property, buy it at the listed price, send it to auction, or pass and leave it available. Landing on another player’s property requires rent. Select a property in the player panel to see its price and rent schedule.'],
+  ['Building and selling', 'Own an entire color group to build houses evenly. Four houses can be upgraded to a hotel. The bank has 32 houses and 12 hotels. Buildings sell for half their cost and must be sold evenly. Sell all buildings in a color group before selling one of its properties to the bank for half price.'],
+  ['Cards and jail', 'Chance and Community Chest cards are drawn from their available decks and applied after the reveal. To leave jail, roll doubles, pay $50 before rolling, or use a held get-out-of-jail card. After a third unsuccessful roll, pay $50 and move using that roll.'],
+  ['Trades and loans', 'Offer cash, properties, or get-out-of-jail cards to another player, who can accept or decline. Sell buildings in a color group before trading its properties. Loans are a house rule: borrow up to $500 from the bank or request a player loan. Loans have a one-time 10% charge, rounded up, with voluntary full repayment and no automatic deadline.'],
+  ['Debt and bankruptcy', 'If you cannot pay, raise cash by selling buildings or properties, trading, or borrowing. If selling your buildings and properties still cannot cover the immediate debt, you may declare bankruptcy. Your remaining assets go to the creditor; properties returned to the bank are auctioned if the game continues. Your bank loans are written off, and the bank pays player lenders their outstanding balances.'],
+];
 
 export default function RuleBook() {
-  return (
-    <div className="rulebook-container">
-      <h1 className="rulebook-title">RuleBook</h1>
-      <div className="rulebook-subtitle">
-        Ages 8+ | 2 to 6 Players
-      </div>
-      
-      <div className="rulebook-content">
-        <section className="rulebook-section">
-          <h5 className="rulebook-section-title">OBJECT:</h5>
-          <p className="rulebook-section-text">
-            The object of the game is to become the wealthiest player through buying, renting, and selling property. 
-            <span className="rulebook-highlight"> Each player is given $1,500</span>
-          </p>
-        </section>
-        <section className="rulebook-section">
-          <h5 className="rulebook-section-title">THE PLAY</h5>
-          <p className="rulebook-section-text">
-          Each player hits the "Roll dice" and the token moves in the direction of right to left starting from the corner marked "GO". According to dice value, i.e., sum of 2 dice values, and space, your token reaches a particular card, which may be a property, chance, community chest, income tax, jail, free parking, or any of the utilities.
-          </p>
-        </section>
-        <section className="rulebook-section">
-          <h5 className="rulebook-section-title">"GO"</h5>
-          <p className="rulebook-section-text">
-          Each time a player's token lands on or passes over GO, whether by throwing the dice or drawing a card, the player gets a $200 salary.
-          </p>
-        </section>
-        <section className="rulebook-section">
-          <h5 className="rulebook-section-title">BUYING PROPERTY</h5>
-          <p className="rulebook-section-text">
-          Whenever you land on an unowned property, you may buy that property from the Bank at its printed price. If you do not wish to buy the property, then you can click on the skip button. If the player buys the property, then the ownership tracker gets updated listing the property name under the respective color group with the player's token color beside it
-          </p>
-        </section>
-        <section className="rulebook-section">
-          <h5 className="rulebook-section-title">PAYING RENT</h5>
-          <p className="rulebook-section-text">
-          When a player lands on property owned by another player, the owner collects rent from the player.
-          </p>
-        </section>
-        <section className="rulebook-section">
-          <h5 className="rulebook-section-title">CHANCE AND COMMUNITY CHEST</h5>
-          <p className="rulebook-section-text">
-          When a player lands on these cards, a random card is withdrawn from our set of cards and displayed in the window. The player has to follow whatever is shown on the card.
-          </p>
-        </section>
-
-
-        {/* Rest of the sections follow the same pattern */}
-      </div>
-    </div>
-  )
+  return <main className="rulebook-container">
+    <Link className="rulebook-home" to="/home">← Home</Link>
+    <h1 className="rulebook-title">How to play</h1>
+    <p className="rulebook-subtitle">Local game · 2 to 6 players</p>
+    <div className="rulebook-content">{sections.map(([title,text])=><section className="rulebook-section" key={title}><h2 className="rulebook-section-title">{title}</h2><p className="rulebook-section-text">{text}</p></section>)}</div>
+  </main>;
 }
