@@ -1,6 +1,6 @@
 const host = typeof window === 'undefined' ? 'localhost' : window.location.hostname;
 const defaultOrigin = `http://${host}:3001`;
-const base = (process.env.REACT_APP_API_URL || defaultOrigin).replace(/\/$/, '');
+const base = (process.env.REACT_APP_API_URL || (process.env.REACT_APP_HOSTED === 'true' ? '/api/account' : defaultOrigin)).replace(/\/$/, '');
 export async function accountRequest(path, options={}) {
   let response;
   try {response=await fetch(`${base}${path}`,{credentials:'include',...options,headers:{...(options.body?{'Content-Type':'application/json'}:{}),...options.headers}});}
