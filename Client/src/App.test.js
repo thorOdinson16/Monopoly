@@ -9,7 +9,7 @@ test('Play opens the unified game setup', () => {
   localStorage.clear();
   window.history.pushState({}, '', '/home');
   render(<App />);
-  fireEvent.click(screen.getByRole('button', {name:'Play'}));
+  fireEvent.click(screen.getByRole('link', {name:'Play'}));
   expect(screen.getByRole('heading', {name:'Set up players'})).toBeInTheDocument();
   expect(window.location.pathname).toBe('/game');
 });

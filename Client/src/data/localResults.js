@@ -2,7 +2,7 @@ const RESULTS_KEY = 'monopoly-local-results-v1';
 const GAME_KEY = 'monopoly-local-game-v1';
 export function ensureMatchId(game) {
   if (game.matchId) return game;
-  const id = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const id = window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   return {...game, matchId:id};
 }
 export function readResults() {

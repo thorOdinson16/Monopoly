@@ -31,8 +31,26 @@ test('dice settle before the pawn moves and controls unlock afterwards', () => {
   expect(screen.getByRole('dialog', {name:'Community Chest'})).toBeInTheDocument();
   act(() => jest.advanceTimersByTime(1));
   expect(screen.queryByRole('dialog', {name:'Community Chest'})).not.toBeInTheDocument();
+  expect(screen.getByLabelText('Player 1: Community Chest')).toBeInTheDocument();
+  act(() => jest.advanceTimersByTime(150));
   expect(screen.getByLabelText('Player 1: Baltic Avenue')).toBeInTheDocument();
   jest.restoreAllMocks();
+  jest.useRealTimers();
+});
+
+test('online card closes before its resulting movement starts', () => {
+  jest.useFakeTimers();
+  const drawn = action(createGame(['Alex', 'Sam']), 'roll', {dice:[1,1], cardRandom:0});
+  const resolved = action(drawn, 'resolveCard', {cardRandom:0});
+  const room = {game:drawn, seat:0, code:'TEST', revision:1};
+  const view = render(<MemoryRouter><LocalGame online={{room, send:jest.fn()}} /></MemoryRouter>);
+  expect(screen.getByRole('dialog', {name:'Community Chest'})).toBeInTheDocument();
+  view.rerender(<MemoryRouter><LocalGame online={{room:{...room, game:resolved, revision:2, lastAction:'resolveCard'}, send:jest.fn()}} /></MemoryRouter>);
+  expect(screen.queryByRole('dialog', {name:'Community Chest'})).not.toBeInTheDocument();
+  expect(screen.getByLabelText('Alex: Community Chest')).toBeInTheDocument();
+  act(() => jest.advanceTimersByTime(150));
+  expect(screen.getByLabelText('Alex: Baltic Avenue')).toBeInTheDocument();
+  view.unmount();
   jest.useRealTimers();
 });
 
@@ -52,6 +70,38 @@ test('sound can be muted before rolling', () => {
   jest.useRealTimers();
 });
 
+test('pawn movement plays a tap for each square', () => {
+  jest.useFakeTimers();
+  jest.spyOn(Math, 'random').mockReturnValue(0);
+  const param = {setValueAtTime:jest.fn(), exponentialRampToValueAtTime:jest.fn()};
+  const oscillator = jest.fn(() => ({frequency:param, connect:jest.fn(), start:jest.fn(), stop:jest.fn()}));
+  window.AudioContext = jest.fn(() => ({currentTime:0, sampleRate:100, destination:{}, createBuffer:()=>({getChannelData:()=>new Float32Array(6)}), createBufferSource:()=>({connect:jest.fn(),start:jest.fn(),stop:jest.fn()}), createBiquadFilter:()=>({frequency:{}, Q:{},connect:jest.fn()}), createGain:()=>({gain:param,connect:jest.fn()}), createOscillator:oscillator, close:()=>Promise.resolve()}));
+  localStorage.setItem('monopoly-local-game-v1', JSON.stringify(createGame(['Alex', 'Sam'])));
+  const view = render(<MemoryRouter><LocalGame /></MemoryRouter>);
+  fireEvent.click(screen.getByRole('button', {name:'Roll dice'}));
+  const diceSounds = oscillator.mock.calls.length;
+  act(() => jest.advanceTimersByTime(1700));
+  expect(oscillator).toHaveBeenCalledTimes(diceSounds + 1);
+  act(() => jest.advanceTimersByTime(220));
+  expect(oscillator).toHaveBeenCalledTimes(diceSounds + 2);
+  view.unmount();
+  delete window.AudioContext;
+  jest.restoreAllMocks();
+  jest.useRealTimers();
+});
+
+test('online dice play sound on the rolling player’s click', () => {
+  const createAudio = jest.fn(() => { throw new Error('No audio device in test'); });
+  window.AudioContext = createAudio;
+  const game = createGame(['Alex', 'Sam']);
+  const send = jest.fn().mockResolvedValue({});
+  render(<MemoryRouter><LocalGame online={{room:{game, seat:0, code:'TEST', revision:1}, send}} /></MemoryRouter>);
+  fireEvent.click(screen.getByRole('button', {name:'Roll dice'}));
+  expect(createAudio).toHaveBeenCalledTimes(1);
+  expect(send).toHaveBeenCalledWith('roll', expect.any(Object));
+  delete window.AudioContext;
+});
+
 test('properties and balances are in separate panels, with a closable activity drawer', () => {
   localStorage.setItem('monopoly-local-game-v1', JSON.stringify({version:1,players:[{name:'Alex',money:1440,position:1,jail:0,bankrupt:false},{name:'Sam',money:1500,position:0,jail:0,bankrupt:false}],owners:{1:0},mortgaged:{},current:0,phase:'roll',dice:null,doubles:0,pending:null,log:['Alex buys Mediterranean Avenue.'],winner:null}));
   render(<MemoryRouter><LocalGame /></MemoryRouter>);
@@ -68,13 +118,125 @@ test('properties and balances are in separate panels, with a closable activity d
   expect(screen.queryByRole('complementary', {name:'Activity log'})).not.toBeInTheDocument();
 });
 
+test('local player order stays stable and property management is above activity', () => {
+  const game = createGame(['Alex', 'Sam']);
+  game.current = 1;
+  game.owners[1] = 1;
+  localStorage.setItem('monopoly-local-game-v1', JSON.stringify(game));
+  render(<MemoryRouter><LocalGame /></MemoryRouter>);
+  const overview = screen.getByRole('complementary', {name:'Player properties'});
+  expect(within(overview).getAllByRole('article')[0]).toHaveTextContent('Alex');
+  expect(within(overview).getByText('Playing')).toBeInTheDocument();
+  expect(screen.getByText('Manage properties').compareDocumentPosition(screen.getByText('This turn')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});
+
+test('turn highlights stay short while the activity log retains every entry', () => {
+  const game = createGame(['Alex', 'Sam']);
+  game.turnLog = ['Alex buys Boardwalk.', 'Sam passes.', 'Alex pays $50.', 'Alex lands on Boardwalk.', 'Alex rolled 2 + 3.', "Alex's turn begins."];
+  game.log = [...game.turnLog];
+  localStorage.setItem('monopoly-local-game-v1', JSON.stringify(game));
+  render(<MemoryRouter><LocalGame /></MemoryRouter>);
+  const highlights = screen.getByRole('region', {name:"This turn's activity"});
+  expect(within(highlights).getAllByRole('listitem')).toHaveLength(3);
+  expect(highlights).not.toHaveTextContent('Sam passes.');
+  fireEvent.click(screen.getByRole('button', {name:'Activity log'}));
+  expect(screen.getByRole('complementary', {name:'Activity log'})).toHaveTextContent('Sam passes.');
+});
+
+test('online player keeps their own properties first across turns', () => {
+  const game = createGame(['Alex', 'Sam']);
+  const room = {game, seat:1, code:'TEST', revision:1};
+  const view = render(<MemoryRouter><LocalGame online={{room, send:jest.fn()}} /></MemoryRouter>);
+  const overview = screen.getByRole('complementary', {name:'Player properties'});
+  expect(within(overview).getAllByRole('article')[0]).toHaveTextContent('Sam');
+  view.rerender(<MemoryRouter><LocalGame online={{room:{...room, game:{...game,current:1}, revision:2}, send:jest.fn()}} /></MemoryRouter>);
+  expect(within(overview).getAllByRole('article')[0]).toHaveTextContent('Sam');
+  expect(screen.getByLabelText('Monopoly board')).not.toContainElement(screen.getByRole('region', {name:'Player balances'}));
+  expect(screen.getByRole('region', {name:'Player balances'}).compareDocumentPosition(screen.getByLabelText('Monopoly board')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});
+
+test('online host can end the game and another player can resign', () => {
+  const game = createGame(['Alex', 'Sam', 'Pat']);
+  const send = jest.fn().mockResolvedValue({});
+  const room = {game, seat:0, code:'TEST', revision:1};
+  const view = render(<MemoryRouter><LocalGame online={{room, send}} /></MemoryRouter>);
+  fireEvent.click(screen.getByRole('button', {name:'End game for everyone'}));
+  expect(send).not.toHaveBeenCalled();
+  fireEvent.click(within(screen.getByRole('dialog', {name:'End game for everyone?'})).getByRole('button', {name:'End game'}));
+  expect(send).toHaveBeenCalledWith('abandon', undefined);
+  view.rerender(<MemoryRouter><LocalGame online={{room:{...room, seat:1}, send}} /></MemoryRouter>);
+  expect(screen.queryByRole('button', {name:'End game for everyone'})).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', {name:'Resign'}));
+  fireEvent.click(within(screen.getByRole('dialog', {name:'Resign from game?'})).getByRole('button', {name:'Resign'}));
+  expect(send).toHaveBeenCalledWith('resign', undefined);
+});
+
 test('building controls update a property and its owner balance', () => {
   localStorage.setItem('monopoly-local-game-v1', JSON.stringify({version:1,players:[{name:'Alex',money:1500,position:0,jail:0,bankrupt:false},{name:'Sam',money:1500,position:0,jail:0,bankrupt:false}],owners:{1:0,3:0},mortgaged:{},current:0,phase:'roll',dice:null,doubles:0,pending:null,log:[],winner:null}));
   render(<MemoryRouter><LocalGame /></MemoryRouter>);
-  fireEvent.click(screen.getAllByRole('button', {name:'Build $50'})[0]);
+  fireEvent.click(screen.getAllByRole('button', {name:'Build ? $50'})[0]);
   expect(screen.getByRole('complementary', {name:'Player properties'})).toHaveTextContent('Mediterranean Avenue - 1 house');
   expect(screen.getByRole('region', {name:'Player balances'})).toHaveTextContent('$1450');
   expect(screen.getByTitle('1 house')).toBeInTheDocument();
+});
+
+test('board property cards allow the owner to build, sell a house and sell the property', () => {
+  const game = createGame(['Alex', 'Sam']);
+  game.owners = {1:0, 3:0};
+  localStorage.setItem('monopoly-local-game-v1', JSON.stringify(game));
+  render(<MemoryRouter><LocalGame /></MemoryRouter>);
+  fireEvent.click(within(screen.getByLabelText('Monopoly board')).getByRole('button', {name:'View Mediterranean Avenue details'}));
+  const card = screen.getByRole('dialog', {name:'Mediterranean Avenue'});
+  fireEvent.click(within(card).getByRole('button', {name:'Build house - $50'}));
+  expect(card).toHaveTextContent('1 house');
+  fireEvent.click(within(card).getByRole('button', {name:'Sell house - $25'}));
+  fireEvent.click(within(card).getByRole('button', {name:'Sell property - $30'}));
+  expect(card).toHaveTextContent('Owned by Bank');
+  expect(within(card).queryByText('Manage this property')).not.toBeInTheDocument();
+});
+
+test('landing on an owned complete set opens a build prompt after movement', () => {
+  jest.useFakeTimers();
+  jest.spyOn(Math, 'random').mockReturnValue(0);
+  const game = createGame(['Alex', 'Sam']);
+  game.players[0].position = 39;
+  game.owners = {1:0, 3:0};
+  localStorage.setItem('monopoly-local-game-v1', JSON.stringify(game));
+  render(<MemoryRouter><LocalGame /></MemoryRouter>);
+  fireEvent.click(screen.getByRole('button', {name:'Roll dice'}));
+  expect(screen.queryByRole('dialog', {name:'Mediterranean Avenue'})).not.toBeInTheDocument();
+  act(() => jest.advanceTimersByTime(2500));
+  const card = screen.getByRole('dialog', {name:'Mediterranean Avenue'});
+  expect(card).toHaveTextContent('You can build a house here for $50.');
+  fireEvent.click(within(card).getByRole('button', {name:'Build house - $50'}));
+  expect(card).toHaveTextContent('1 house');
+  fireEvent.click(within(card).getByRole('button', {name:'Close'}));
+  expect(screen.queryByRole('dialog', {name:'Mediterranean Avenue'})).not.toBeInTheDocument();
+  jest.restoreAllMocks();
+  jest.useRealTimers();
+});
+
+test('board spaces without properties open a details card', () => {
+  localStorage.setItem('monopoly-local-game-v1', JSON.stringify(createGame(['Alex', 'Sam'])));
+  render(<MemoryRouter><LocalGame /></MemoryRouter>);
+  fireEvent.click(within(screen.getByLabelText('Monopoly board')).getByRole('button', {name:'View GO details'}));
+  expect(screen.getByRole('dialog', {name:'GO'})).toHaveTextContent('cannot be purchased');
+});
+
+test('landing on an unowned property opens a purchase popup with all options', () => {
+  const game = createGame(['Alex', 'Sam']);
+  game.players[0].position = 1;
+  game.phase = 'buy';
+  game.owners[3] = 0;
+  localStorage.setItem('monopoly-local-game-v1', JSON.stringify(game));
+  render(<MemoryRouter><LocalGame /></MemoryRouter>);
+  const dialog = screen.getByRole('dialog', {name:'Mediterranean Avenue'});
+  for (const name of ['Buy property','Decline and auction','Pass and move on','Propose trade','Request loan']) expect(within(dialog).getByRole('button', {name})).toBeInTheDocument();
+  fireEvent.click(within(dialog).getByRole('button', {name:'Manage my properties'}));
+  expect(screen.queryByRole('dialog', {name:'Mediterranean Avenue'})).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', {name:'Return to purchase decision'}));
+  fireEvent.click(within(screen.getByRole('dialog', {name:'Mediterranean Avenue'})).getByRole('button', {name:'Pass and move on'}));
+  expect(screen.queryByRole('dialog', {name:'Mediterranean Avenue'})).not.toBeInTheDocument();
 });
 
 test('players can offer and accept a property trade', () => {
@@ -101,9 +263,9 @@ test('a player loan is approved and repaid', () => {
   fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', {name:'Request loan'}));
   expect(screen.getByText('Loan request for Player 2')).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', {name:'Approve loan'}));
-  expect(screen.getByRole('region', {name:'Player balances'})).toHaveTextContent('Owes $110 to Player 2');
+  expect(screen.getByRole('region', {name:'Outstanding loans'})).toHaveTextContent('Player 1 owes $110 to Player 2');
   fireEvent.click(screen.getByRole('button', {name:'Repay'}));
-  expect(screen.queryByText('Owes $110 to Player 2')).not.toBeInTheDocument();
+  expect(screen.queryByRole('region', {name:'Outstanding loans'})).not.toBeInTheDocument();
 });
 
 test('a jailed player can use a held card to leave jail', () => {
@@ -124,7 +286,7 @@ test('utility card prompts for a separate rent roll', () => {
 test('owned property opens a card with prices and full rent schedule', () => {
   localStorage.setItem('monopoly-local-game-v1', JSON.stringify({version:1,players:[{name:'Alex',money:1500,position:0,jail:0,bankrupt:false},{name:'Sam',money:1500,position:0,jail:0,bankrupt:false}],owners:{39:1},mortgaged:{},current:0,phase:'roll',dice:null,doubles:0,pending:null,log:[],winner:null}));
   render(<MemoryRouter><LocalGame /></MemoryRouter>);
-  fireEvent.click(screen.getByRole('button',{name:'View Boardwalk details'}));
+  fireEvent.click(within(screen.getByRole('complementary', {name:'Player properties'})).getByRole('button',{name:'View Boardwalk details'}));
   const card=screen.getByRole('dialog',{name:'Boardwalk'});
   expect(card).toHaveTextContent('Purchase price$400');
   expect(card).toHaveTextContent('Sale price to bank$200');
@@ -149,7 +311,7 @@ test('old saves keep their properties and allow property and jail card trades', 
 test('selling an owned property pays half price and removes ownership', () => {
   localStorage.setItem('monopoly-local-game-v1', JSON.stringify({version:1,players:[{name:'Alex',money:1500,position:0,jail:0,bankrupt:false},{name:'Sam',money:1500,position:0,jail:0,bankrupt:false}],owners:{1:0},current:0,phase:'roll',dice:null,doubles:0,pending:null,log:[],winner:null}));
   render(<MemoryRouter><LocalGame /></MemoryRouter>);
-  fireEvent.click(screen.getByRole('button',{name:'Sell property $30'}));
+  fireEvent.click(screen.getByRole('button',{name:'Sell to bank ? $30'}));
   expect(screen.getByRole('region',{name:'Player balances'})).toHaveTextContent('$1530');
   expect(screen.queryByTitle('Owned by Alex')).not.toBeInTheDocument();
 });
@@ -159,7 +321,7 @@ test('saving and reopening a resolved card debt does not repeat payments', () =>
   s=action(s,'resolveCard');
   localStorage.setItem('monopoly-local-game-v1',JSON.stringify(s));
   const first=render(<MemoryRouter><LocalGame /></MemoryRouter>);
-  fireEvent.click(screen.getByRole('button',{name:'Sell property $100'}));
+  fireEvent.click(screen.getByRole('button',{name:'Sell to bank ? $100'}));
   expect(JSON.parse(localStorage.getItem('monopoly-local-game-v1')).players.map(p=>p.money)).toEqual([10,1550,1550,1550]);
   first.unmount();
   render(<MemoryRouter><LocalGame /></MemoryRouter>);
@@ -199,8 +361,8 @@ test('property actions explain why uneven building and selling are unavailable',
   const game=createGame(['Alex','Sam']);game.owners={1:0,3:0};game.buildings={1:1};
   localStorage.setItem('monopoly-local-game-v1',JSON.stringify(game));
   render(<MemoryRouter><LocalGame /></MemoryRouter>);
-  expect(screen.getByRole('button',{name:'Build $50'})).toBeDisabled();
-  expect(screen.getByRole('button',{name:'Sell property $30'})).toBeDisabled();
+  expect(screen.getByRole('button',{name:'Build ? $50'})).toBeDisabled();
+  expect(screen.getByRole('button',{name:'Sell to bank ? $30'})).toBeDisabled();
   expect(screen.getByText('Build evenly across the color group.')).toBeInTheDocument();
   expect(screen.getByText('Sell all buildings in this color group before selling a property.')).toBeInTheDocument();
 });
@@ -209,13 +371,13 @@ test('current-turn activity remains visible, survives reload and resets on the n
   const game=createGame(['Alex','Sam']);game.owners={1:0};game.phase='end';
   localStorage.setItem('monopoly-local-game-v1',JSON.stringify(game));
   const first=render(<MemoryRouter><LocalGame /></MemoryRouter>);
-  fireEvent.click(screen.getByRole('button',{name:'Sell property $30'}));
+  fireEvent.click(screen.getByRole('button',{name:'Sell to bank ? $30'}));
   expect(screen.getByRole('region',{name:"This turn's activity"})).toHaveTextContent('Alex sells Mediterranean Avenue to the bank for $30.');
   first.unmount();
   render(<MemoryRouter><LocalGame /></MemoryRouter>);
   expect(screen.getByRole('region',{name:"This turn's activity"})).toHaveTextContent('Alex sells Mediterranean Avenue to the bank for $30.');
   fireEvent.click(screen.getByRole('button',{name:'End turn'}));
-  expect(screen.getByRole('region',{name:"This turn's activity"})).toHaveTextContent("Sam's turn begins.");
+  expect(screen.getByRole('region',{name:"This turn's activity"})).toHaveTextContent('Key actions will appear here.');
   expect(screen.getByRole('region',{name:"This turn's activity"})).not.toHaveTextContent('Alex sells Mediterranean');
   fireEvent.click(screen.getByRole('button',{name:'Activity log'}));
   expect(screen.getByRole('complementary',{name:'Activity log'})).toHaveTextContent('Alex sells Mediterranean Avenue');
