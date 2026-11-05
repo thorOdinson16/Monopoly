@@ -1,0 +1,7 @@
+/data/online-rooms.json
+/data/online-rooms.json.tmp
+/data/desktop-session.json
+/data/desktop-*.log
+/GAME_PLAN.md
+/server/node_modules/
+/Client/dev-server*.log
