@@ -71,3 +71,26 @@ test('only the host can end a game, and players can only resign themselves', () 
     assert.throws(() => rooms.perform(host.code, sam.token, 'roll', {}, ended.revision), /ended/);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
+
+test('account-linked seats can be recovered and produce private game statistics', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'monopoly-account-rooms-'));
+  try {
+    const rooms=createRooms(path.join(dir,'rooms.json'));
+    const host=rooms.create('Alice','alice@example.com');
+    const guest=rooms.join(host.code,'Bob');
+    rooms.link(host.code,guest.token,'bob@example.com');
+    assert.throws(()=>rooms.link(host.code,guest.token,'mallory@example.com'),/another account/);
+    assert.throws(()=>rooms.rejoin(host.code,'mallory@example.com'),/No active seat/);
+    const recovered=rooms.rejoin(host.code,'bob@example.com');
+    assert.equal(recovered.seat,1);
+    assert.equal(rooms.read(host.code,guest.token).seat,1);
+    rooms.decide(host.code,host.token,1,true);
+    const started=rooms.start(host.code,host.token);
+    assert.equal(rooms.analytics('bob@example.com').active,1);
+    rooms.perform(host.code,recovered.token,'resign',{},started.revision);
+    assert.equal(rooms.analytics('alice@example.com').wins,1);
+    assert.equal(rooms.analytics('bob@example.com').games[0].result,'loss');
+    assert.throws(()=>rooms.rejoin(host.code,'bob@example.com'),/No active seat/);
+    assert.ok(!JSON.stringify(rooms.read(host.code,host.token)).includes('bob@example.com'));
+  } finally {fs.rmSync(dir,{recursive:true,force:true});}
+});

@@ -166,7 +166,7 @@ function LoanForm({game, error, onCancel, onRequest}) {
   const [amount,setAmount]=useState('100');
   const principal=Number(amount);
   return <div className="trade-backdrop"><section className="trade-dialog loan-dialog" role="dialog" aria-modal="true" aria-labelledby="loan-title">
-    <h2 id="loan-title">Request a loan</h2><p>House rule: repay the principal plus 10% interest, rounded up. Repayment is voluntary and due in full; there is no automatic deadline. Bank loans are limited to one outstanding loan of up to $500; players can make multiple loans. If a borrower goes bankrupt, their bank loan is written off and the bank pays player lenders the full outstanding amount.</p>
+    <h2 id="loan-title">Request a loan</h2><p>House rule: repay the principal plus 10% interest, rounded up. Repayment is voluntary, in full or in part; there is no automatic deadline. Bank loans are limited to one outstanding loan of up to $500; players can make multiple loans. If a borrower goes bankrupt, their bank loan is written off and the bank pays player lenders the remaining amount.</p>
     {error && <p role="alert" className="game-error">{error}</p>}
     <form onSubmit={event=>{event.preventDefault();onRequest({lender:lender==='bank'?null:Number(lender),principal});}}>
       <label>Lender <select value={lender} onChange={event=>setLender(event.target.value)}><option value="bank">Bank</option>{game.players.map((player,i)=>i!==game.current&&!player.bankrupt?<option key={i} value={i}>{player.name} (${player.money})</option>:null)}</select></label>
@@ -175,6 +175,10 @@ function LoanForm({game, error, onCancel, onRequest}) {
       <div className="game-actions"><button type="submit">Request loan</button><button type="button" onClick={onCancel}>Cancel</button></div>
     </form>
   </section></div>;
+}
+function RepaymentForm({loan, game, error, onCancel, onRepay}) {
+  const [amount,setAmount]=useState(String(Math.min(loan.due,game.players[loan.borrower].money)));
+  return <div className="trade-backdrop"><section className="trade-dialog loan-dialog" role="dialog" aria-modal="true" aria-labelledby="repay-title"><h2 id="repay-title">Repay loan</h2><p>Remaining balance: <strong>${loan.due}</strong> to {loan.lender===null?'the bank':game.players[loan.lender].name}. Available cash: ${game.players[loan.borrower].money}.</p><form onSubmit={event=>{event.preventDefault();onRepay(Number(amount));}}><label>Amount <input type="number" aria-label="Repayment amount" min="1" max={Math.min(loan.due,game.players[loan.borrower].money)} step="1" required value={amount} onChange={event=>setAmount(event.target.value)}/></label>{error && <p className="game-error" role="alert">{error}</p>}<div className="game-actions"><button type="submit" disabled={game.players[loan.borrower].money<1}>Make payment</button><button type="button" onClick={onCancel}>Cancel</button></div></form></section></div>;
 }
 function completedSetLanding(next, previous, seat) {
   const movement = next.movement || [], player = previous.current;
@@ -198,11 +202,13 @@ export default function LocalGame({online}) {
   const [activityOpen, setActivityOpen] = useState(false);
   const [tradeOpen, setTradeOpen] = useState(false);
   const [loanOpen, setLoanOpen] = useState(false);
+  const [repayId, setRepayId] = useState(null);
   const [managedProperty, setManagedProperty] = useState('');
   const [propertyCard, setPropertyCard] = useState(null);
   const [landingCard, setLandingCard] = useState(null);
   const [purchaseHidden, setPurchaseHidden] = useState(false);
   const [confirmExit, setConfirmExit] = useState(null);
+  const [seatLinked, setSeatLinked] = useState(false);
   const [deckHighlight, setDeckHighlight] = useState(null);
   const [deckVisible, setDeckVisible] = useState(true);
   const moving = sequence !== 'idle';
@@ -366,8 +372,8 @@ export default function LocalGame({online}) {
         {selectedSpace && ['roll','buy','end','debt'].includes(game.phase) && <fieldset disabled={moving || waiting} className="game-decision property-manager"><h3>Manage properties</h3><p className="property-intro">Choose a property to build or sell.</p><label>Choose property <select value={selectedProperty} onChange={event=>setManagedProperty(event.target.value)}>{ownedProperties.map(index=><option key={index} value={index}>{board[index].name}</option>)}</select></label><p className="building-supply">Bank: {housesAvailable} houses / {12-Object.values(buildings).filter(n=>n===5).length} hotels</p><div className="game-actions"><button disabled={groupHasBuildings} onClick={()=>dispatch('sellProperty',{property:Number(selectedProperty)})}>Sell to bank ? ${selectedSpace.price/2}</button>{hasSet && game.phase!=='debt' && selectedLevel<5 && <button disabled={!!buildReason} onClick={()=>dispatch('build',{property:Number(selectedProperty)})}>Build ? ${selectedSpace.buildingCost}</button>}{selectedLevel>0 && <button onClick={()=>dispatch('sellBuilding',{property:Number(selectedProperty)})}>Sell building ? ${selectedSpace.buildingCost/2}</button>}{selectedLevel===5 && housesAvailable<4 && <button onClick={()=>dispatch('sellBuildingGroup',{property:Number(selectedProperty)})}>Sell group buildings</button>}</div>{groupHasBuildings && <p className="property-help">Sell all buildings in this color group before selling a property.</p>}{buildReason && game.phase!=='debt' && <p className="property-help">{buildReason}</p>}</fieldset>}
         <section className="turn-activity" aria-label="This turn's activity"><div className="turn-activity-heading"><h3>This turn</h3><span>HIGHLIGHTS</span></div>{turnHighlights.length ? <ol aria-live="polite">{turnHighlights.map((entry,i)=><li key={i}>{sequence==='selecting' && entry.includes(' draws ') ? `${p.name} is drawing a card…` : entry}</li>)}</ol> : <p>Key actions will appear here.</p>}</section>
         <button type="button" className="activity-toggle" aria-expanded={activityOpen} aria-controls="activity-drawer" onClick={() => setActivityOpen(true)}>Activity log</button>
-        {(game.loans||[]).length>0 && <section className="outstanding-loans" aria-label="Outstanding loans"><h3>Outstanding loans</h3>{game.loans.map(loan=><div className="loan-line" key={loan.id}><span>{game.players[loan.borrower].name} owes ${loan.due} to {loan.lender===null?'bank':game.players[loan.lender].name}</span>{loan.borrower===game.current && ['roll','buy','end'].includes(game.phase) && <button type="button" disabled={moving || waiting} onClick={()=>dispatch('repayLoan',{id:loan.id})}>Repay</button>}</div>)}</section>}
-        {online && game.winner===null && <section className="room-controls" aria-label="Game controls"><h3>Game controls</h3>{!game.players[online.room.seat].bankrupt ? <><button type="button" disabled={!canResign || moving} onClick={resign}>Resign</button>{!canResign && <p>Resignation is available after the current card, debt, auction or offer is resolved.</p>}</> : <button type="button" onClick={online.newRoom}>Leave game</button>}{online.room.seat===0 && <button type="button" disabled={moving} onClick={abandon}>End game for everyone</button>}</section>}
+        {(game.loans||[]).length>0 && <section className="outstanding-loans" aria-label="Outstanding loans"><h3>Outstanding loans</h3>{game.loans.map(loan=><div className="loan-line" key={loan.id}><span>{game.players[loan.borrower].name} owes ${loan.due} to {loan.lender===null?'bank':game.players[loan.lender].name}</span>{loan.borrower===game.current && ['roll','buy','end'].includes(game.phase) && <button type="button" disabled={moving || waiting} onClick={()=>{setError('');setRepayId(loan.id);}}>Repay</button>}</div>)}</section>}
+        {online && game.winner===null && <section className="room-controls" aria-label="Game controls"><h3>Game controls</h3>{!game.players[online.room.seat].bankrupt ? <><button type="button" disabled={!canResign || moving} onClick={resign}>Resign</button>{!canResign && <p>Resignation is available after the current card, debt, auction or offer is resolved.</p>}</> : <button type="button" onClick={online.newRoom}>Leave game</button>}{online.room.seat===0 && <button type="button" disabled={moving} onClick={abandon}>End game for everyone</button>}{online.user && online.linkSeat && <button type="button" disabled={seatLinked} onClick={()=>online.linkSeat().then(()=>setSeatLinked(true)).catch(err=>setError(err.message))}>{seatLinked?'Seat linked':'Link seat to account'}</button>}</section>}
 
       </div></section>
       <aside id="activity-drawer" className={`activity-drawer ${activityOpen ? 'is-open' : ''}`} aria-hidden={!activityOpen} aria-label="Activity log"><div className="activity-heading"><h2>Activity log</h2><button type="button" tabIndex={activityOpen ? undefined : -1} onClick={() => setActivityOpen(false)} aria-label="Close activity log">×</button></div><ol className="activity-entries">{game.log.map((entry,i) => <li key={i}>{entry}</li>)}</ol></aside>
@@ -376,6 +382,7 @@ export default function LocalGame({online}) {
       {game.phase==='card' && deckVisible && <DeckReveal game={game} highlight={deckHighlight} selecting={sequence==='selecting'}/>}
       {tradeOpen && <TradeForm game={game} error={error} onCancel={()=>{setError('');setTradeOpen(false);}} onOffer={offer=>{if(dispatch('proposeTrade',offer))setTradeOpen(false);}}/>}
       {loanOpen && <LoanForm game={game} error={error} onCancel={()=>{setError('');setLoanOpen(false);}} onRequest={request=>{if(dispatch('requestLoan',request))setLoanOpen(false);}}/>}
+      {repayId!==null && (game.loans||[]).some(loan=>loan.id===repayId) && <RepaymentForm loan={game.loans.find(loan=>loan.id===repayId)} game={game} error={error} onCancel={()=>{setRepayId(null);setError('');}} onRepay={amount=>{if(dispatch('repayLoan',{id:repayId,amount}))setRepayId(null);}}/>}
       {confirmExit && <ConfirmDialog title={confirmExit==='resign'?'Resign from game?':'End game for everyone?'} message={confirmExit==='resign'?'Your properties return to the bank, and you cannot rejoin this game.':'The game will end for everyone and there will be no winner.'} confirmLabel={confirmExit==='resign'?'Resign':'End game'} onCancel={()=>setConfirmExit(null)} onConfirm={()=>{const type=confirmExit;setConfirmExit(null);dispatch(type);}}/>}
     </>}{error && !tradeOpen && !loanOpen && <p role="alert" className="game-error">{error}</p>}
   </main>;

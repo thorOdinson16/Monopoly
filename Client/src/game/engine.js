@@ -156,8 +156,12 @@ function action(state, type, payload={}) {
  } else if(type==='repayLoan'){
   if(!['roll','end','buy'].includes(s.phase))throw Error('Resolve your current decision or debt before repaying a loan.');
   const index=s.loans.findIndex(loan=>loan.id===payload.id&&loan.borrower===s.current);if(index<0)throw Error('Choose one of your outstanding loans.');
-  const loan=s.loans[index];if(p.money<loan.due)throw Error('You need enough cash to repay the full loan.');
-  p.money-=loan.due;if(loan.lender!==null)s.players[loan.lender].money+=loan.due;s.loans.splice(index,1);log(`${p.name} repays $${loan.due} to ${loan.lender===null?'the bank':s.players[loan.lender].name}.`);
+  const loan=s.loans[index], amount=payload.amount===undefined?loan.due:payload.amount;
+  if(!Number.isSafeInteger(amount)||amount<1||amount>loan.due)throw Error('Enter a whole amount between $1 and the remaining loan balance.');
+  if(p.money<amount)throw Error('You do not have enough cash for that repayment.');
+  p.money-=amount;if(loan.lender!==null)s.players[loan.lender].money+=amount;loan.due-=amount;
+  if(!loan.due)s.loans.splice(index,1);
+  log(`${p.name} repays $${amount} to ${loan.lender===null?'the bank':s.players[loan.lender].name}${loan.due?`; $${loan.due} remains`:''}.`);
  } else if(type==='build'||type==='sellBuilding'||type==='sellBuildingGroup'){
   if(!['roll','end','buy','debt'].includes(s.phase))throw Error('Building management is not available now.');
   const i=Number(payload.property);if(!Number.isInteger(i)||s.owners[i]!==s.current||!board[i]||!board[i].buildingCost)throw Error('Choose an owned color property.');

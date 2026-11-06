@@ -4,6 +4,7 @@ import 'bootstrap/dist/css/bootstrap.min.css'
 import Signup from './Signup'
 import {BrowserRouter,Routes,Route,Navigate} from 'react-router-dom'
 import Login from './Login';
+import ResetPassword from './ResetPassword';
 import Home from './home';
 import Leaderboard from './LeaderBoard';
 import Profile from './Profile'
@@ -27,9 +28,10 @@ function App() {
         <Routes>
           <Route path='/' element={<Navigate to='/home' replace />} />
           <Route path='/game' element={<LocalGame />} />
-          <Route path='/online' element={<OnlineRoom />} />
+          <Route path='/online' element={<OnlineRoom user={user} />} />
           <Route path='/local-game' element={<Navigate to='/game' replace />} />
           <Route path='/register' element={localOnly ? <Navigate to='/home' replace /> : <Signup onAuthenticated={authenticated}/>}></Route>
+          <Route path='/reset-password' element={<ResetPassword/>}/>
           <Route 
             path='/login' 
             element={localOnly ? <Navigate to='/home' replace /> : <Login onAuthenticated={authenticated} />} 
@@ -40,7 +42,7 @@ function App() {
             } 
           />
           <Route path='/leaderboard' element={<Leaderboard/>}></Route>
-          <Route path='/profile' element={<Profile user={user} onSignOut={signOut} localOnly={localOnly}/>}></Route>
+          <Route path='/profile' element={<Profile user={user} onAuthenticated={authenticated} onSignOut={signOut} localOnly={localOnly}/>}></Route>
         <Route path='/game2' element={<Navigate to='/game' replace />}/>
         <Route path='/game3' element={<Navigate to='/game' replace />}/>
         <Route path='/game5' element={<Navigate to='/game' replace />}/>

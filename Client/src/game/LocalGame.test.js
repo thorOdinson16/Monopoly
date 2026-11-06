@@ -265,7 +265,20 @@ test('a player loan is approved and repaid', () => {
   fireEvent.click(screen.getByRole('button', {name:'Approve loan'}));
   expect(screen.getByRole('region', {name:'Outstanding loans'})).toHaveTextContent('Player 1 owes $110 to Player 2');
   fireEvent.click(screen.getByRole('button', {name:'Repay'}));
+  fireEvent.click(screen.getByRole('button', {name:'Make payment'}));
   expect(screen.queryByRole('region', {name:'Outstanding loans'})).not.toBeInTheDocument();
+});
+
+test('a player can repay part of a loan and see the remaining balance', () => {
+  const game=createGame(['Alex','Sam']);
+  game.loans=[{id:1,borrower:0,lender:1,principal:100,due:110}];
+  localStorage.setItem('monopoly-local-game-v1',JSON.stringify(game));
+  render(<MemoryRouter><LocalGame /></MemoryRouter>);
+  fireEvent.click(screen.getByRole('button',{name:'Repay'}));
+  fireEvent.change(screen.getByLabelText('Repayment amount'),{target:{value:'40'}});
+  fireEvent.click(screen.getByRole('button',{name:'Make payment'}));
+  expect(screen.getByRole('region',{name:'Outstanding loans'})).toHaveTextContent('Alex owes $70 to Sam');
+  expect(screen.getByRole('region',{name:'Player balances'})).toHaveTextContent('$1540');
 });
 
 test('a jailed player can use a held card to leave jail', () => {

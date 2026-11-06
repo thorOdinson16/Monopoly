@@ -5,7 +5,7 @@ A browser-based Monopoly game for 2–6 players. Play together on one device, or
 ## Playing
 
 - **Local game:** choose **Play**, enter the players' names, and share one device. The game resumes from the same browser.
-- **Online game:** choose **Play online** in the hosted app. The host creates a room and shares its code or link; other players enter a name and request to join. The host approves players and starts the game. A player can reconnect using the same browser, as long as its saved room credential remains available.
+- **Online game:** choose **Play online** in the hosted app. The host creates a room and shares its code or link; other players enter a name and request to join. The host approves players and starts the game. A player can reconnect using the same browser; signed-in players whose seats are linked can also rejoin with their account on another device.
 - The online host can end a room for everyone. Individual players can resign when no card, debt, auction or offer is awaiting resolution. Their properties return to the bank; if one player remains, that player wins.
 
 The board includes animated dice and pawns with sound, property cards, purchases, auctions, rent, houses and hotels, trades, jail, Chance and Community Chest. Click a board space to see its card and manage an eligible property. The **Activity log** contains the full history.
@@ -14,7 +14,7 @@ Properties sell directly to the bank for half their purchase price; buildings in
 
 ### Loan house rule
 
-A player may have one bank loan of up to $500 and multiple loans from other players, subject to lender approval. Loans have a one-time 10% charge, rounded up, and can be repaid in full voluntarily; there is no automatic deadline. When a borrower goes bankrupt, bank loans are written off and the bank pays player lenders the full outstanding amount. Loans owed to a bankrupt lender transfer to the bankruptcy creditor or the bank.
+A player may have one bank loan of up to $500 and multiple loans from other players, subject to lender approval. Loans have a one-time 10% charge, rounded up, and can be repaid in full or in part voluntarily; there is no automatic deadline. When a borrower goes bankrupt, bank loans are written off and the bank pays player lenders the remaining outstanding amount. Loans owed to a bankrupt lender transfer to the bankruptcy creditor or the bank.
 
 ## Install
 
@@ -63,9 +63,19 @@ Share the HTTPS address printed by Tailscale, including `:8443`. Visitors do not
 
 ## Data and accounts
 
-- **Accounts and sessions:** MongoDB defaults to `mongodb://127.0.0.1:27017/monopoly`. Set `MONGODB_URI` to use another MongoDB database. Passwords and session tokens are stored as hashes. Accounts do not currently sync games or results.
-- **Online rooms and games:** saved on the host in `data/online-rooms.json`. Keep this file if you want to retain rooms across server restarts. The host's browser stores its seat credential, as does each player's browser.
-- **Local games, results and saved player names:** stored in the browser on the device used to play. Clearing browser storage removes that local data.
+- **Accounts and sessions:** MongoDB defaults to `mongodb://127.0.0.1:27017/monopoly`. Set `MONGODB_URI` to use another MongoDB database. Passwords and session tokens are stored as hashes. Players can change their display name and password in their profile; changing a password signs out all sessions. In the hosted app it also revokes linked seat credentials; sign in and rejoin the room with your account.
+- **Online rooms and games:** saved on the host in `data/online-rooms.json`. Keep this file if you want to retain rooms across server restarts. Signed-in players link their seat to their account to see online game statistics and recover an active seat on another device. Guests can link a seat after signing in.
+- **Local games, results and saved player names:** stored in the browser on the device used to play. Signed-in players can explicitly save a versioned snapshot to their account from Profile and restore it on another device. Restore replaces the local data on that device; concurrent changes are detected before saving. Local analytics group results by player name and are not verified account statistics.
+
+### Forgotten passwords
+
+The host verifies the player's identity and generates a one-time link from the repository root:
+
+```powershell
+node server/create-reset-link.js player@example.com https://your-host.tailnet.ts.net:8443
+```
+
+Share the link privately. It expires after 30 minutes; using it changes the password, invalidates the player's sessions, and invalidates their other reset links. The sign-in page directs players to ask the host for a link. This setup does not send email.
 
 ## Tests
 
